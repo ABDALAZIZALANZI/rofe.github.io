@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لوحة المؤثرات الصوتية</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9ecf1;--panel:#f7f8fa;--ink:#1b2333;--mute:#66708a;--line:#cfd5e0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161a24;--panel:#1f2532;--ink:#eef1f7;--mute:#98a2ba;--line:#2f374a}}
+:root[data-theme="dark"]{--bg:#161a24;--panel:#1f2532;--ink:#eef1f7;--mute:#98a2ba;--line:#2f374a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Tajawal',Tahoma,Arial,sans-serif;min-height:100vh}
+main{max-width:760px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:2rem;font-weight:800;margin:8px 0 4px}
+p.sub{margin:0 0 18px;color:var(--mute)}
+.ctl{display:flex;flex-wrap:wrap;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:18px}
+.ctl label{display:flex;flex-direction:column;gap:6px;flex:1 1 200px;font-weight:700;font-size:.95rem}
+input[type=range]{width:100%;accent-color:#e4572e}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.pad{position:relative;border:0;border-radius:18px;padding:18px 12px;min-height:110px;color:#fff;font:inherit;font-weight:800;font-size:1.1rem;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;box-shadow:0 5px 0 rgba(0,0,0,.28);transition:transform .06s,box-shadow .06s}
+.pad:active,.pad.on{transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.28)}
+.pad:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.pad .em{font-size:1.8rem}
+.pad kbd{font:inherit;font-size:.8rem;opacity:.85;background:rgba(0,0,0,.22);border-radius:6px;padding:1px 8px;align-self:flex-end}
+.hint{margin-top:18px;color:var(--mute);font-size:.9rem}
+@media (prefers-reduced-motion:reduce){.pad{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>لوحة المؤثرات الصوتية</h1>
+<p class="sub">اضغط على أي زر أو استخدم لوحة المفاتيح لتشغيل الصوت.</p>
+<div class="ctl">
+<label>مستوى الصوت<input id="vol" type="range" min="0" max="1" step="0.01" value="0.7"></label>
+<label>حدّة الصوت<input id="pitch" type="range" min="0.5" max="2" step="0.01" value="1"></label>
+</div>
+<div class="grid" id="grid"></div>
+<p class="hint">المفاتيح: 1 2 3 4 5 6 7 8 9 0 Q W</p>
+</main>
+<script>
+let ctx,master;
+function init(){
+  if(ctx)return;
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  master=ctx.createGain();master.connect(ctx.destination);
+  setVol();
+}
+const vol=document.getElementById('vol'),pitch=document.getElementById('pitch');
+function setVol(){if(master)master.gain.value=+vol.value}
+vol.oninput=setVol;
+const P=()=>+pitch.value;
+
+function tone(o){
+  const t=ctx.currentTime+(o.at||0),osc=ctx.createOscillator(),g=ctx.createGain();
+  osc.type=o.type||'sine';
+  osc.frequency.setValueAtTime(o.f*P(),t);
+  if(o.to)osc.frequency.exponentialRampToValueAtTime(o.to*P(),t+o.d);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(o.v||0.5,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+o.d);
+  osc.connect(g);g.connect(master);osc.start(t);osc.stop(t+o.d+0.05);
+}
+function noise(d,f,v,at){
+  const t=ctx.currentTime+(at||0),n=ctx.sampleRate*d,b=ctx.createBuffer(1,n,ctx.sampleRate),a=b.getChannelData(0);
+  for(let i=0;i<n;i++)a[i]=Math.random()*2-1;
+  const s=ctx.createBufferSource();s.buffer=b;
+  const fl=ctx.createBiquadFilter();fl.type='lowpass';fl.frequency.setValueAtTime(f*P(),t);fl.frequency.exponentialRampToValueAtTime(60,t+d);
+  const g=ctx.createGain();g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+  s.connect(fl);fl.connect(g);g.connect(master);s.start(t);
+}
+
+const sounds=[
+ {n:'نقرة',e:'👆',c:'#3b6fd8',k:'1',p:()=>tone({f:900,to:400,d:.06,type:'square',v:.3})},
+ {n:'فقاعة',e:'🫧',c:'#1f9ab5',k:'2',p:()=>tone({f:300,to:900,d:.12,v:.6})},
+ {n:'جرس',e:'🔔',c:'#c48a06',k:'3',p:()=>{tone({f:880,d:1.2,v:.5});tone({f:1760,d:.8,v:.2});tone({f:2637,d:.5,v:.1})}},
+ {n:'عملة',e:'🪙',c:'#b8780a',k:'4',p:()=>{tone({f:988,d:.08,type:'square',v:.25});tone({f:1319,d:.5,type:'square',v:.25,at:.08})}},
+ {n:'ليزر',e:'🔫',c:'#8a44c9',k:'5',p:()=>tone({f:1800,to:150,d:.3,type:'sawtooth',v:.3})},
+ {n:'قفزة',e:'🦘',c:'#2e9e5b',k:'6',p:()=>tone({f:200,to:700,d:.25,type:'square',v:.3})},
+ {n:'انفجار',e:'💥',c:'#d9482b',k:'7',p:()=>{noise(1.2,2500,.9);tone({f:120,to:30,d:.8,v:.9})}},
+ {n:'صفير',e:'💨',c:'#5b7a8c',k:'8',p:()=>noise(.9,4000,.5)},
+ {n:'خطأ',e:'⛔',c:'#c0303f',k:'9',p:()=>{tone({f:160,d:.25,type:'sawtooth',v:.4});tone({f:130,d:.35,type:'sawtooth',v:.4,at:.22})}},
+ {n:'نجاح',e:'✅',c:'#1f8f7a',k:'0',p:()=>[523,659,784,1047].forEach((f,i)=>tone({f,d:.3,v:.35,at:i*.09}))},
+ {n:'طبل',e:'🥁',c:'#a64b2a',k:'q',p:()=>{tone({f:150,to:45,d:.4,v:.9});noise(.08,3000,.2)}},
+ {n:'صفارة',e:'🚨',c:'#d0552f',k:'w',p:()=>{for(let i=0;i<4;i++){tone({f:700,to:1100,d:.25,type:'triangle',v:.4,at:i*.5});tone({f:1100,to:700,d:.25,type:'triangle',v:.4,at:i*.5+.25})}}}
+];
+
+const grid=document.getElementById('grid');
+function play(i){
+  init();if(ctx.state==='suspended')ctx.resume();
+  sounds[i].p();
+  const b=grid.children[i];b.classList.add('on');setTimeout(()=>b.classList.remove('on'),110);
+}
+sounds.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='pad';b.style.background=s.c;
+  b.innerHTML='<span class="em">'+s.e+'</span><span>'+s.n+'</span><kbd>'+s.k.toUpperCase()+'</kbd>';
+  b.onclick=()=>play(i);
+  grid.appendChild(b);
+});
+document.addEventListener('keydown',e=>{
+  if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
+  const i=sounds.findIndex(s=>s.k===e.key.toLowerCase());
+  if(i>-1)play(i);
+});
+</script>
+</body>
+</html>
